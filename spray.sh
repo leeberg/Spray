@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo -e "\nSpray 2.1 the Password Sprayer by Jacob Wilkin(Greenwolf)\n"
-echo -e "\Edited by Lee Berg for demo purposes!!!\n"
+echo -e "\nEdited by Lee Berg for demo purposes!!!\n"
 
 if [ $# -eq 0 ] || [ "$1" == "-help" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ] ; then
     echo "This script will password spray a target over a period of time"
@@ -37,6 +37,7 @@ if [ "$1" == "-smb" ] || [ "$1" == "--smb" ] || [ "$1" == "smb" ] ; then
             
     #start on list
     for password in $(cat $passwordlist); do
+        (echo "Processing password: $password")
         time=$(date +%H:%M:%S)
     	for u in $(cat $userslist); do 
             (echo "$time : Spraying user: $u with password: $password")
