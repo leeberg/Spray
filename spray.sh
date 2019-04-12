@@ -1,6 +1,7 @@
 #!/bin/bash
 
 echo -e "\nSpray 2.1 the Password Sprayer by Jacob Wilkin(Greenwolf)\n"
+echo -e "\Edited by Lee Berg for demo purposes!!!\n"
 
 if [ $# -eq 0 ] || [ "$1" == "-help" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ] ; then
     echo "This script will password spray a target over a period of time"
@@ -23,7 +24,7 @@ fi
 if [ "$1" == "-smb" ] || [ "$1" == "--smb" ] || [ "$1" == "smb" ] ; then
     mkdir -p logs
     set +H
-    timebetweenusers = $8
+    timebetweenusers=$8
     domain=$7
     target=$2
     cp $3 logs/username-removed-successes.txt
@@ -33,18 +34,8 @@ if [ "$1" == "-smb" ] || [ "$1" == "--smb" ] || [ "$1" == "smb" ] ; then
     lockoutduration=$(($6 * 60))
     counter=0
     touch logs/spray-logs.txt
-
-    #Initial spray for same username as password
-    time=$(date +%H:%M:%S)
-    cat logs/spray-logs.txt | grep -v "Cannot"
-    counter=$(($counter + 1))
-    if [ $counter -eq $lockout ] ; then
-    	counter=0
-    	sleep $lockoutduration
-    fi
             
-            
-    #Then start on list
+    #start on list
     for password in $(cat $passwordlist); do
         time=$(date +%H:%M:%S)
     	for u in $(cat $userslist); do 
